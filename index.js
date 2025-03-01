@@ -12,13 +12,10 @@ import { scheduleJob } from "node-schedule";
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'dist')));
+app.use(express.static('/home/ubuntu/Final-Project-Front/dist'));
 
 const sql = neon(process.env.DATABASE_URL);
 endOfDay();
@@ -387,7 +384,7 @@ function endOfDay() {
 }
 
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  res.sendFile('/home/ubuntu/Final-Project-Front/dist/index.html');
 });
 
 app.listen(3000, () => {
