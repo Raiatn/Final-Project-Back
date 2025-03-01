@@ -1,20 +1,27 @@
 import dotenv from "dotenv";
-import express, { query } from "express";
-import { neon, Query } from "@neondatabase/serverless";
+import express from "express";
+import { neon } from "@neondatabase/serverless";
 import bcrypt from "bcryptjs";
 import cors from "cors";
 import jwt from "jsonwebtoken";
+import path from "path";
+import { fileURLToPath } from "url";
 import verifyToken from "./verifyToken.js";
 import sendEmail from "./sendEmail.js";
 import { scheduleJob } from "node-schedule";
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'dist')));
+
 const sql = neon(process.env.DATABASE_URL);
 endOfDay();
-
 
 app.post("/login", async (req, res) => {
   try {
@@ -26,8 +33,7 @@ app.post("/login", async (req, res) => {
 
     const trimmedEmail = email.trim().toLowerCase();
 
-    const user =
-      await sql`SELECT * FROM public.users WHERE email = ${trimmedEmail}`;
+    const user = await sql`SELECT * FROM public.users WHERE email = ${trimmedEmail}`;
     if (user.length === 0) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -86,9 +92,7 @@ app.post("/signup", async (req, res) => {
       SELECT * FROM public.users WHERE email = ${email.toLowerCase().trim()}
     `;
     if (existingUser.length > 0) {
-      return res
-        .status(409)
-        .json({ error: "User with that email already exists." });
+      return res.status(409).json({ error: "User with that email already exists." });
     }
 
     const name = `${firstName.trim()} ${lastName.trim()}`;
@@ -97,17 +101,14 @@ app.post("/signup", async (req, res) => {
 
     const newUser = await sql`
       INSERT INTO public.users (name, email, password, role) 
-      VALUES (${name}, ${email
-      .toLowerCase()
-      .trim()}, ${hashedPassword}, ${role}) 
+      VALUES (${name}, ${email.toLowerCase().trim()}, ${hashedPassword}, ${role}) 
       RETURNING *;
     `;
 
     let token = 0;
 
     if (role === "Provider") {
-      const settingId =
-        await sql`INSERT INTO public.appointmentsettings ("providerEmail", "openingTime", "closingTime", "appointmentDuration", "lastAppointmentTime", type)
+      const settingId = await sql`INSERT INTO public.appointmentsettings ("providerEmail", "openingTime", "closingTime", "appointmentDuration", "lastAppointmentTime", type)
           VALUES (${email},null, null, null, null, 'Static')
           RETURNING id;`;
       token = jwt.sign(
@@ -153,8 +154,7 @@ app.patch("/change-pass", verifyToken, async (req, res) => {
   const { password, newPassword } = req.body;
 
   try {
-    const user =
-      await sql`SELECT * FROM public.users WHERE email = ${req.user.email}`;
+    const user = await sql`SELECT * FROM public.users WHERE email = ${req.user.email}`;
     if (user.length === 0) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -244,8 +244,7 @@ app.patch("/change-status", verifyToken, async (req, res) => {
 app.get("/getappointmentsetting/:id", verifyToken, async (req, res) => {
   try {
     const id = req.params.id;
-    const setting =
-      await sql`SELECT * FROM public.appointmentsettings WHERE id = ${id}`;
+    const setting = await sql`SELECT * FROM public.appointmentsettings WHERE id = ${id}`;
 
     if (setting.length === 0) {
       return res.status(404).json({ error: "Appointment setting not found" });
@@ -272,8 +271,7 @@ app.patch("/update-Appointment-Settings/:id", async (req, res) => {
     if (!openingTime || !closingTime || !appointmentDuration || !type) {
       return res.status(400).json({
         error: "Missing required fields",
-        details:
-          "openingTime, closingTime, appointmentDuration, and type are required",
+        details: "openingTime, closingTime, appointmentDuration, and type are required",
       });
     }
 
@@ -322,8 +320,7 @@ app.post("/add-auto-appointment/:id", verifyToken, async (req, res) => {
   const id = req.params.id;
 
   try {
-    const setting =
-      await sql`SELECT * FROM appointmentsettings WHERE id = ${id}`;
+    const setting = await sql`SELECT * FROM appointmentsettings WHERE id = ${id}`;
 
     if (!setting || setting.length === 0) {
       return res.status(404).json({ error: "Appointment settings not found" });
@@ -356,9 +353,7 @@ app.post("/add-auto-appointment/:id", verifyToken, async (req, res) => {
       WHERE "id" = ${id}
       RETURNING *`;
 
-    res
-      .status(201)
-      .json({ message: "Appointment added successfully", data: result });
+    res.status(201).json({ message: "Appointment added successfully", data: result });
   } catch (error) {
     console.error("Error:", error);
     res.status(500).json({ error: "Something went wrong" });
@@ -385,14 +380,15 @@ app.post("/add-static-appointment/:id", verifyToken, async (req, res) => {
 
 function endOfDay() {
   scheduleJob('59 54 23 * * *', async () => {
-    await sql`UPDATE appointments 
-              SET "status" = 'Completed' 
-              WHERE "date" = CURRENT_DATE`;
-    await sql`UPDATE appointmentsettings 
-              SET "lastAppointmentTime" = "openingTime"`;
+    await sql`UPDATE appointments SET "status" = 'Completed' WHERE "date" = CURRENT_DATE`;
+    await sql`UPDATE appointmentsettings SET "lastAppointmentTime" = "openingTime"`;
     console.log("End of day: Appointments completed and times reset");
   });
 }
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
 
 app.listen(3000, () => {
   console.log("Server running at http://localhost:3000");
