@@ -13,7 +13,12 @@ import { scheduleJob } from "node-schedule";
 dotenv.config();
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173', 
+  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}
+));
 app.use(express.json());
 app.use(express.static('/home/ubuntu/Final-Project-Front/dist'));
 
